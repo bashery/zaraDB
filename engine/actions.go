@@ -84,27 +84,7 @@ func HandleQueries(query string) string {
 		//return showCollections(db.path)
 		return getCollections()
 
-	// trying sqlite query
-	case "sql":
-		return querySql(parsedQuery)
-
 	default:
 		return fmt.Errorf("unknown '%s' cation", parsedQuery.Get("action").Str).Error()
 	}
-}
-
-// hmmmmm sql
-func querySql(query gjson.Result) string {
-	qr := query.Get("query").Str
-	res, _ := db.db.Query(qr)
-	record := ""
-	result := "["
-	for res.Next() {
-		res.Scan(&record)
-		result += record + ","
-	}
-	if result == "[" {
-		return "[]"
-	}
-	return result[:len(result)-1] + "]"
 }

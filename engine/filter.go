@@ -8,7 +8,14 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// gjson.Type =>  json:5, array:5, int:2, string:3
+// gjson.Type:
+// Null:   0
+// False:  1
+// number: 2
+// string: 3
+// True:   4
+// json:   5
+// array:  5
 
 // match verifies that data matches the conditions
 func match(filter gjson.Result, data string) (result bool, err error) {
@@ -21,7 +28,7 @@ func match(filter gjson.Result, data string) (result bool, err error) {
 		dataVal := gjson.Get(data, queryKey.Str)
 
 		if queryVal.Type == 5 { // 5:json
-			// {name:{$eq:"adam"}, age:{$gt: 18}}
+			// e.g {name:{$eq:"adam"}, age:{$gt: 18}}
 
 			queryVal.ForEach(func(sQueryKey, sQueryVal gjson.Result) bool {
 
@@ -163,9 +170,10 @@ func match(filter gjson.Result, data string) (result bool, err error) {
 					}
 					return result
 
-				case "$in": // in array
+					// works with array
+				case "$in": // exests in array
 
-					// handle Str arr
+					// handle String array
 					if dataVal.Type == 3 {
 						for _, v := range sQueryVal.Array() {
 							if dataVal.Str == v.Str {
@@ -176,7 +184,7 @@ func match(filter gjson.Result, data string) (result bool, err error) {
 						return result
 					}
 
-					// handle Num arr
+					// handle Number array
 					for _, v := range sQueryVal.Array() {
 						if dataVal.Num == v.Num {
 							return result
@@ -185,7 +193,7 @@ func match(filter gjson.Result, data string) (result bool, err error) {
 					result = false
 					return result
 
-				case "$nin": // not in
+				case "$nin": // not in array
 					// handle string arr
 					if dataVal.Type == 3 {
 						for _, v := range sQueryVal.Array() {
@@ -326,7 +334,6 @@ func match(filter gjson.Result, data string) (result bool, err error) {
 					}
 
 					err = fmt.Errorf("unknown %s operator", sQueryKey.Str)
-
 					result = false
 					return result
 				}
@@ -340,12 +347,19 @@ func match(filter gjson.Result, data string) (result bool, err error) {
 		if queryVal.Type == 2 {
 			if queryVal.Num != dataVal.Num {
 				result = false
+				return result
 			}
 		}
 
 		// if queryVal is string : {name: "adam"}
 		if queryVal.Str != dataVal.Str {
 			result = false
+			return result
+		}
+
+		if queryVal.Type != dataVal.Type {
+			result = false
+			return result
 		}
 
 		// if result is true then keep iterating
@@ -378,66 +392,6 @@ func getSubs(dataVal, subQuery gjson.Result) (bool, error) {
 }
 
 func getsub(query gjson.Result) (ids []int64) {
-
-	coll := query.Get("collection").Str
-	if coll == "" {
-		return nil
-	}
-
-	mtch := query.Get("match")
-
-	if mtch.String() == "" {
-		fmt.Println("match.Str is empty")
-	}
-
-	skip := query.Get("skip").Int()
-	limit := query.Get("limit").Int()
-	if limit == 0 {
-		limit = 100
-	}
-
-	stmt := `select rowid, record from ` + coll
-
-	subs := query.Get("subs")
-
-	if subs.Raw != "" {
-		fmt.Println("sub.Row is : ", subs.Raw)
-	}
-
-	rows, err := db.db.Query(stmt)
-	if err != nil {
-		return nil
-	}
-	defer rows.Close()
-
-	record := ""
-	rowid := 0
-
-	for rows.Next() {
-		if limit == 0 {
-			break
-		}
-
-		record = ""
-		rowid = 0
-		_ = rows.Scan(&rowid, &record)
-
-		ok, err := match(mtch, record)
-		if err != nil {
-			fmt.Printf("match %s\n", err)
-			return nil
-		}
-
-		if ok {
-			if skip != 0 {
-				skip--
-				continue
-			}
-			ids = append(ids, int64(rowid))
-			limit--
-		}
-	}
-	//fmt.Println("\n", ids)
 
 	return ids
 }

@@ -80,7 +80,7 @@ func order(data []string, params gjson.Result) []string {
 
 // not implemented yet
 func (ag Aggregate) aggrigate(query gjson.Result) string {
-	data, err := getData(query)
+	data, err := db.getData(query)
 	if err != nil {
 		return err.Error()
 	}

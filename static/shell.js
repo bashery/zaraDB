@@ -1,14 +1,13 @@
 
-
+//
 const queryInput = document.getElementById('query-input');
 const textarea = document.querySelector("textarea");
 
-// pretty print json
+// load  pretty json setting
 var pretty = localStorage.getItem("pretty") === "true" ? true : false;
 
-// default pretty ?
+// check and set pretty setteng ?
 $(document).ready(function() {
-    // check defult prettyJson 
    if (localStorage.getItem('pretty') == "true") {
        $('#togglePretty').prop('checked', true);
        pretty = true 
@@ -23,60 +22,25 @@ $(document).ready(function() {
 
 // change json's output format 
 $('#togglePretty').change(function() {
-    console.log("toggle pretty: ", pretty)
     pretty = !pretty;
-
+    
     if (pretty) {
-       // Storing an object in localStorage
        localStorage.setItem('pretty', "true");
     } else {
        localStorage.setItem('pretty', "false");
     }
 
     $('textarea').focus()
-    try {
-        eval("obj = "+ queryInput.value)
-        let query = JSON.stringify(obj)
-        send(query);
-        return;
-
-    } catch (error) {
-        //console.error("Error evaluating code:", error);
-        $('#data').html(`<pre><span>${error}</span></pre>`);
-        $('#data').fadeIn(400);
-        return; 
-    }
+    sendQuery(queryInput)
+    return;
 });
-
-// render response data 
-function HandleResponse(response) {
-    $('#examples').hide();
-    $('#data').html("<div><div>");
-
-    if (pretty) {
-        var Data = prettyJSON(response)
-        $('#data').html(`<pre><span>${Data}</span></pre>`);
-        $('#data').fadeIn(400);
-        console.log("pretty json")
-        return
-    }
-
-    data = JSON.parse(response);
-
-    for (let i = 0;i< data.length;i++) {
-        let obj = JSON.stringify(data[i]) 
-        obj = obj.replace(/,"/g, ', "'); 
-        $('#data').append(`<pre><span>${obj}</span></pre>`);
-    }
-    $('#data').fadeIn(400);
-};
 
 // handle textarea events
 queryInput.addEventListener('keydown', function(event) {
 
     // handle & send query
     if ((event.metaKey || event.altKey ) && event.key === 'Enter' ) {
-        console.log(queryInput.value)
+        console.log("with Enter: ", queryInput)
         sendQuery(queryInput)
         return
     }
@@ -97,27 +61,45 @@ queryInput.addEventListener('keydown', function(event) {
     }
 })
 
-// Function to send query using HTTP POST request
-function send(query) {
-    $.ajax({
-        url: 'http://localhost:1111/queries', // Replace with your actual server endpoint
-        type: 'POST',
-        contentType: 'text/plain', // Assuming your server accepts plain text
-        data: query,
-        success: function(response) {
-            HandleResponse(response);
-        },
-        error: function(jqXHR, textStatus, errorThrown) {
-            console.error("Error sending query:", errorThrown);
-            $('#data').html(`<pre><span>${errorThrown}</span></pre>`);
-            $('#data').fadeIn(400);
-        }
-    });
-}
+// render response data 
+function HandleResponse(response) {
+    $('#examples').hide();
+    $('#data').html("<div><div>");
+    if (pretty) {
+        let Data = prettyJSON(response)
+        $('#data').html(`<pre><span>${Data}</span></pre>`);
+        $('#data').fadeIn(400);
+        return;
+    }
 
+    data = JSON.parse(response);
 
+    if (!Array.isArray(data)) {
+        let obj = JSON.stringify(data) 
+        $('#data').append(`<pre><span>${obj}</span></pre>`);
+        $('#data').fadeIn(400);
+        return;
+    }
+
+    for (let i = 0;i< data.length;i++) {
+        let obj = JSON.stringify(data[i]) 
+        obj = obj.replace(/,"/g, ', "'); 
+        $('#data').append(`<pre><span>${obj}</span></pre>`);
+    }
+    $('#data').fadeIn(400);
+};
+
+// sendQuery db queries
 function sendQuery(input) {
+
     $("#data").css("display","none");
+
+   if (input.value.length< 5) {
+        let error = "empty query"
+        $('#data').html(`<pre><span>${error}</span></pre>`);
+        $('#data').fadeIn(400);
+        return;
+    }
     //event.preventDefault();
     if (input.value) {
         try {
@@ -133,6 +115,24 @@ function sendQuery(input) {
             return; 
         }
     } 
+}
+
+// post query using HTTP POST request
+function send(query) {
+    $.ajax({
+        url: 'http://localhost:1111/queries', // Replace with your actual server endpoint
+        type: 'POST',
+        contentType: 'text/plain', // Assuming your server accepts plain text
+        data: query,
+        success: function(response) {
+            HandleResponse(response);
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            console.error("Error sending query:", errorThrown);
+            $('#data').html(`<pre><span>${errorThrown}</span></pre>`);
+            $('#data').fadeIn(400);
+        }
+    });
 }
 
 // pretty rendering json
@@ -162,6 +162,7 @@ function calcHeight(value) {
     return 20 + numberOfLineBreaks * 20 + 12;
 }
 
+// reHight textarea
 textarea.addEventListener("keyup", (e) => {
    // resize hight of textarea
    setHightTextArea(textarea)

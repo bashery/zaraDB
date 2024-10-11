@@ -1,87 +1,100 @@
 package engine
 
 import (
-	"database/sql"
 	"fmt"
-	"strings"
+	"log"
+	"strconv"
 
-	_ "modernc.org/sqlite"
+	"go.etcd.io/bbolt"
 )
 
-type DB struct {
-	db     *sql.DB
+type Store struct {
+	db     *bbolt.DB
 	lastid map[string]int64
 }
 
-// var lastid = make(map[string]int64, 0)
-var db *DB
+var db *Store
 
-func NewDB(dbName string) *DB {
-
-	newdb, err := sql.Open("sqlite", dbName)
+func NewDB(path string) *Store {
+	// Open a bbolt database
+	kv, err := bbolt.Open(path, 0600, nil)
 	if err != nil {
-		panic(err)
+		fmt.Println("can not create file ?? why ?")
+		log.Fatal(err)
 	}
 
-	db = &DB{db: newdb}
-	db.lastid = make(map[string]int64, 0)
+	lastIds := make(map[string]int64, 0)
 
-	// Query the sqlite_master table to get table names
-	rows, err := newdb.Query("SELECT name FROM sqlite_master WHERE type='table'")
+	err = kv.View(func(tx *bbolt.Tx) error {
+		// Iterate over all buckets in the root
+		return tx.ForEach(func(name []byte, _ *bbolt.Bucket) error {
+
+			var lastKey = []byte("0")
+
+			// Get the last key in the bucket
+			err = kv.View(func(tx *bbolt.Tx) error {
+				bucket := tx.Bucket(name)
+				if bucket != nil {
+					lastKey, _ = bucket.Cursor().Last()
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			id, _ := strconv.Atoi(string(lastKey))
+
+			lastIds[string(name)] = int64(id)
+			return nil
+		})
+
+	})
+
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+		return nil
 	}
-	defer rows.Close()
 
-	// Iterate through rows and print table names
-	for rows.Next() {
-		var tableName string
-		err := rows.Scan(&tableName)
-		if err != nil {
-			panic(err)
-		}
-		lid, _ := getLastId(newdb, tableName)
-
-		db.lastid[tableName] = lid
-
-		//fmt.Println("Table Name:", tableName)
+	db = &Store{db: kv, lastid: lastIds}
+	for k, v := range db.lastid {
+		fmt.Println(k, v)
 	}
 	return db
 }
 
-// insert new record
-func (db *DB) insert(collection, obj string) error {
-	d := strings.TrimLeft(obj, " ")
-	if len(d) < 2 {
-		return fmt.Errorf("len data is 0 %s\n", d)
-	}
+func (db *Store) getLastKey(bucket []byte) int64 {
+	var lastKey = []byte("0")
 
-	db.lastid[collection]++
-	data := `{"_id":` + fmt.Sprint(db.lastid[collection]) + ", " + d[1:]
-	fmt.Println("data: ", data)
-	fmt.Println("coll: ", collection)
-	// + s faster then format
-	_, err := db.db.Exec(`insert into ` + collection + `(record) values('` + data + `');`)
+	// Get the last key from bucket
+	err := db.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket(bucket)
+		if bucket == nil {
+			return fmt.Errorf("bucket should not be nil")
+		}
+		lastKey, _ = bucket.Cursor().Last()
+		return nil
+	})
 	if err != nil {
-		fmt.Println(err)
-		db.lastid[collection]--
-		return err
+		log.Println("getLastKey :", err)
 	}
-
-	return nil
+	id, _ := strconv.Atoi(string(lastKey))
+	return int64(id)
 }
 
-// Close db
-func (db *DB) Close() {
+func (db *Store) Put(backet, key, val string) (err error) {
+	err = db.db.Update(func(tx *bbolt.Tx) error {
+		bucket, err := tx.CreateBucketIfNotExists([]byte(backet))
+		if err != nil {
+			fmt.Println("err in Put", err)
+			return err
+		}
+		bucket.Put([]byte(key), []byte(val))
+		return nil
+	})
+	return err
+}
+
+func (db *Store) Close() {
+	db.db.Sync()
 	db.db.Close()
 }
-
-// error
-func check(hint string, err error) {
-	if err != nil {
-		fmt.Println(hint, err)
-		//return
-	}
-}
-
-// end

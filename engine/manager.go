@@ -4,33 +4,28 @@ import (
 	"fmt"
 
 	"github.com/tidwall/gjson"
+	"go.etcd.io/bbolt"
 )
 
-func (db *DB) CreateCollection(collection string) error {
-	query := fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (record json);`, collection)
-	_, err := db.db.Exec(query)
-	if err != nil {
-		return err
-	}
-	lid, err := getLastId(db.db, collection)
-	if err != nil {
-		return err
-	}
-	db.lastid[collection] = lid
-	return nil
-}
-
 func getCollections() string {
-	table, result := "", `["`
-	res, err := db.db.Query("SELECT name FROM sqlite_master WHERE type='table'")
+
+	result := `["`
+
+	// Use a read-only transaction to list all top-level buckets.
+	err := db.db.View(func(tx *bbolt.Tx) error {
+		// Iterate over each bucket in the root.
+		return tx.ForEach(func(name []byte, b *bbolt.Bucket) error {
+			result += string(name) + ", "
+
+			fmt.Printf("Bucket: %s\n", name)
+			return nil
+		})
+	})
+
 	if err != nil {
-		fmt.Println(err)
+		return err.Error()
 	}
 
-	for res.Next() {
-		res.Scan(&table)
-		result += table + ", "
-	}
 	result = `{"collections": ` + result[:len(result)-2] + `"], "size": "123mb"}`
 
 	return result

@@ -7,11 +7,22 @@ import (
 )
 
 var testCases = []struct {
-	filter  string
-	data    string
-	isMatch bool
+	filter   string
+	data     string
+	expected bool
 }{
-	// ....filter.....     ...data...    ...isMatch...
+	// ....filter.....     ...data...    ...expected result...
+	// boalans & null cases
+	{`{"graded":true}`, `{"graded":true}`, true},
+	{`{"graded":true}`, `{"graded":false}`, false},
+
+	{`{"graded":false}`, `{"graded":true}`, false},
+	{`{"graded":false}`, `{"graded":false}`, true},
+
+	{`{"graded":null}`, `{"graded":null}`, true},
+	{`{"graded":null}`, `{"graded":true}`, false},
+	{`{"graded":null}`, `{"graded":"null"}`, false},
+
 	//  cases of numbers
 	{`{"age": 18}`, `{"age": 18}`, true},
 	{`{"age": 18}`, `{"age": 19}`, false},
@@ -69,6 +80,18 @@ var testCases = []struct {
 
 	{`{"name":{"$ne":"adam"}}`, `{"name":"john"}`, true},
 	{`{"name":{"$ne":"adam"}}`, `{"name":"adam"}`, false},
+
+	{`{"name":{"$st":"ad"}}`, `{"name":"adam"}`, true},
+	{`{"name":{"$st":"ad"}}`, `{"name":"john"}`, false},
+
+	{`{"name":{"$nst":"ad"}}`, `{"name":"john"}`, true},
+	{`{"name":{"$nst":"ad"}}`, `{"name":"adam"}`, false},
+
+	{`{"name":{"$en":"am"}}`, `{"name":"adam"}`, true},
+	{`{"name":{"$en":"ad"}}`, `{"name":"john"}`, false},
+
+	{`{"name":{"$nen":"hn"}}`, `{"name":"adam"}`, true},
+	{`{"name":{"$nen":"am"}}`, `{"name":"adam"}`, false},
 }
 
 func Test_Match(t *testing.T) {
@@ -77,10 +100,21 @@ func Test_Match(t *testing.T) {
 		filt := gjson.Parse(tcase.filter)
 		result, _ := match(filt, tcase.data)
 
-		if result != tcase.isMatch {
-			t.Errorf("\nfilter:  %s\ndata:    %s\nexpected %v,\ngot:     %v\n",
-				filt, data, tcase.isMatch, result)
+		if result != tcase.expected {
+			t.Errorf(Yellow+"\nfilter:  %s\ndata:    %s\nexpected %v,\ngot:     %v\n"+Reset,
+				tcase.filter, tcase.data, tcase.expected, result)
 		}
+	}
+}
+
+func assert(t *testing.T, filt, data string, exp bool) {
+	parsed := gjson.Parse(filt)
+	result, _ := match(parsed, data)
+
+	if result != exp {
+		t.Errorf(
+			Yellow+"\nfilter:  %s\ndata:    %s\nexpected %v,\ngot:     %v\n"+
+				Reset, filt, data, exp, result)
 	}
 }
 
@@ -100,3 +134,10 @@ var data = []string{
 	`{"_id":13, "name":"rabih", "age":31, "contact":{"email": "rabih@email.com", "tele": "00230450083"}}`,
 	`{"_id":14, "name":"monir", "age":31, "contact":{"email": "monir@email.com", "tele": "00239450094"}}`,
 }
+
+const (
+	Red    = "\033[31m"
+	Green  = "\033[32m"
+	Yellow = "\033[33m"
+	Reset  = "\033[0m"
+)

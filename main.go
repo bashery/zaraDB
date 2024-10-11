@@ -18,7 +18,10 @@ var content embed.FS
 func main() {
 
 	db := engine.NewDB("test.db")
-	db.CreateCollection("test")
+	if db == nil {
+		log.Fatal("no db")
+		return
+	}
 	defer db.Close()
 
 	fmt.Printf("interacte with zaradb through %s:%s\n", Host, Port)
